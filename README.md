@@ -1,4 +1,16 @@
 # INTRODUCTION [![Build Status](https://travis-ci.org/fisenkodv/designpatterns.svg?branch=master)](https://travis-ci.org/fisenkodv/designpatterns)
+
+> 🎮 **Interactive research dossier (NEW):** this repository now ships a fully interactive,
+> GitHub-Pages-ready web edition of the material below — animated structure diagrams,
+> step-through choreography, runnable code ports and a playable micro-demo for every pattern,
+> plus six engine-native extras (Command, Object Pool, Game Loop, Component/ECS,
+> Spatial Partition, Event Queue).
+>
+> ➡️ Open it at **[https://sergutsu.github.io/designpatterns/](https://sergutsu.github.io/designpatterns/)**
+> or serve `docs/` with any static file server.
+> The workflow in `.github/workflows/static.yml` deploys `docs/` automatically on every push to `master`
+> (enable Pages source *GitHub Actions* in repo settings).
+
 Below you can find three basic classifications of patterns: Creational, Structural, and Behavioral.
 
 # TYPES OF DESIGN PATTERN
