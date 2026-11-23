@@ -175,6 +175,15 @@
 
   /* ---------- step-through player ---------- */
   function createPlayer(root, steps, refs, opts) {
+    opts = opts || {};
+    const STR = {
+      ready1: opts.ready1 || 'ready',
+      ready2: opts.ready2 || 'Press <b>Play</b> or <b>Next</b> to walk through the pattern’s runtime choreography.',
+      prev: opts.prev || '◀ Prev',
+      next: opts.next || 'Next ▶',
+      play: opts.play || '▶ Play',
+      pause: opts.pause || '⏸ Pause',
+    };
     let idx = -1, timer = null;
     root.classList.add('seq-player');
 
@@ -183,9 +192,9 @@
     const controls = document.createElement('div');
     controls.className = 'seq-controls';
 
-    const btnPrev = document.createElement('button'); btnPrev.className = 'seq-btn'; btnPrev.textContent = '◀ Prev';
-    const btnNext = document.createElement('button'); btnNext.className = 'seq-btn'; btnNext.textContent = 'Next ▶';
-    const btnPlay = document.createElement('button'); btnPlay.className = 'seq-btn primary'; btnPlay.textContent = '▶ Play';
+    const btnPrev = document.createElement('button'); btnPrev.className = 'seq-btn'; btnPrev.textContent = STR.prev;
+    const btnNext = document.createElement('button'); btnNext.className = 'seq-btn'; btnNext.textContent = STR.next;
+    const btnPlay = document.createElement('button'); btnPlay.className = 'seq-btn primary'; btnPlay.textContent = STR.play;
     const dots = document.createElement('div'); dots.className = 'seq-dots';
 
     controls.append(btnPrev, btnNext, btnPlay, dots);
@@ -206,7 +215,7 @@
         if (e2.labelEl) e2.labelEl.classList.remove('glow');
       });
       if (idx < 0) {
-        caption.innerHTML = '<span class="step-badge">ready</span><span>Press <b>Play</b> or <b>Next</b> to walk through the pattern’s runtime choreography.</span>';
+        caption.innerHTML = `<span class="step-badge">${STR.ready1}</span><span>${STR.ready2}</span>`;
         dotEls.forEach(d => d.classList.remove('on'));
         btnPrev.disabled = true; btnNext.disabled = steps.length === 0;
         return;
@@ -230,14 +239,14 @@
     }
 
     function go(i) { idx = Math.max(-1, Math.min(steps.length - 1, i)); paint(); }
-    function stop() { if (timer) { clearInterval(timer); timer = null; btnPlay.textContent = '▶ Play'; } }
+    function stop() { if (timer) { clearInterval(timer); timer = null; btnPlay.textContent = STR.play; } }
 
     btnNext.addEventListener('click', () => { stop(); go(idx + 1); });
     btnPrev.addEventListener('click', () => { stop(); go(idx - 1); });
     btnPlay.addEventListener('click', () => {
       if (timer) { stop(); return; }
       if (idx >= steps.length - 1) go(-1);
-      btnPlay.textContent = '⏸ Pause';
+      btnPlay.textContent = STR.pause;
       timer = setInterval(() => {
         if (idx >= steps.length - 1) { stop(); return; }
         go(idx + 1);

@@ -1,5 +1,5 @@
 /* ============================================================
-   app.js — router, rendering, nav, highlighter
+   app.js — router, rendering, nav, highlighter, i18n (EN/RU)
    ============================================================ */
 (function () {
   const $ = sel => document.querySelector(sel);
@@ -47,7 +47,19 @@
     return html.split('\n').map(l => `<span class="cl">${l || ' '}</span>`).join('');
   }
 
-  /* ---------------- helpers ---------------- */
+  /* ---------------- i18n helpers ---------------- */
+  const L = () => I18N.lang;
+  const tt = (k, vars) => I18N.t(k, vars);
+  const catLabel = cat => I18N.catLabel(cat);
+  const pick = obj => (obj && obj[L()]) || (obj && obj.en) || '';
+  function locP(p) { return (L() === 'ru' && window.PATTERN_RU && PATTERN_RU[p.id]) || null; }
+  function pField(p, f) { const r = locP(p); return (r && r[f]) || p[f]; }
+  function pSteps(p) {
+    const r = locP(p);
+    return p.steps.map((s, i) => ({ hi: s.hi, text: (r && r.steps && r.steps[i]) || s.text }));
+  }
+
+  /* ---------------- dom helpers ---------------- */
   function h(tag, cls, htmlStr) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -97,6 +109,31 @@
   menuBtn.addEventListener('click', () => { sidebar.classList.toggle('open'); scrim.classList.toggle('show'); });
   scrim.addEventListener('click', () => { sidebar.classList.remove('open'); scrim.classList.remove('show'); });
 
+  /* language toggle */
+  function wireLangToggle() {
+    const seg = $('#lang-seg');
+    if (!seg) return;
+    seg.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on', b.dataset.lang === L());
+      b.addEventListener('click', () => {
+        I18N.setLang(b.dataset.lang);
+        localizeStatic();
+        buildNav();        // nav labels are language-dependent too
+        route();           // re-render current view in the new language
+        wireLangToggle();
+      });
+    });
+  }
+
+  /* static nodes marked with data-i18n */
+  function localizeStatic() {
+    $$('[data-i18n]').forEach(el => { el.innerHTML = tt(el.dataset.i18n); });
+    const s = $('#nav-search');
+    if (s) s.placeholder = tt('search.ph');
+    const bs = $('#brand-sub');
+    if (bs) bs.textContent = tt('brand.sub');
+  }
+
   /* ---------------- nav ---------------- */
   function buildNav() {
     const nav = $('#nav-patterns');
@@ -105,7 +142,7 @@
       const meta = CATEGORIES[cat];
       const sec = h('div', 'nav-section');
       sec.style.setProperty('--nav-color', meta.color);
-      sec.appendChild(h('div', 'nav-section-title', `<span class="dot ${cat}"></span>${meta.label}`));
+      sec.appendChild(h('div', 'nav-section-title', `<span class="dot ${cat}"></span>${catLabel(cat)}`));
       PATTERNS.filter(p => p.cat === cat).forEach(p => {
         const a = h('a', 'nav-link', `<span class="num">${p.num}</span><span>${p.name}</span>`);
         a.href = '#/pattern/' + p.id;
@@ -114,13 +151,25 @@
       });
       nav.appendChild(sec);
     });
+    // genres
+    if (window.GENRES) {
+      const gs = h('div', 'nav-section');
+      gs.style.setProperty('--nav-color', '#c792ea');
+      gs.appendChild(h('div', 'nav-section-title', '<span class="dot" style="background:#c792ea"></span>' + tt('nav.genres')));
+      window.GENRES.forEach(g => {
+        const a = h('a', 'nav-link', `<span>${g.icon} ${pick(g.name)}</span>`);
+        a.href = '#/genre/' + g.id; a.dataset.genre = g.id;
+        gs.appendChild(a);
+      });
+      nav.appendChild(gs);
+    }
     // minigames
     if (window.GAMES) {
       const gs = h('div', 'nav-section');
       gs.style.setProperty('--nav-color', '#80ed99');
-      gs.appendChild(h('div', 'nav-section-title', '<span class="dot bonus"></span>Minigames'));
+      gs.appendChild(h('div', 'nav-section-title', '<span class="dot bonus"></span>' + tt('nav.minigames')));
       Object.values(GAMES).forEach(g => {
-        const a = h('a', 'nav-link', `<span>🕹 ${g.title}</span>`);
+        const a = h('a', 'nav-link', `<span>🕹 ${gameTitle(g)}</span>`);
         a.href = '#/game/' + g.id; a.dataset.game = g.id;
         gs.appendChild(a);
       });
@@ -128,8 +177,8 @@
     }
     // utility links
     const sec = h('div', 'nav-section');
-    sec.appendChild(h('div', 'nav-section-title', '<span class="dot" style="background:#6b7690"></span>Dossier'));
-    [['#/category/all', 'All patterns'], ['#/about', 'About & method']].forEach(([href, label]) => {
+    sec.appendChild(h('div', 'nav-section-title', '<span class="dot" style="background:#6b7690"></span>' + tt('nav.dossier')));
+    [['#/category/all', tt('nav.all')], ['#/about', tt('nav.about')]].forEach(([href, label]) => {
       const a = h('a', 'nav-link', `<span>${label}</span>`);
       a.href = href; a.dataset.route = href.slice(2);
       sec.appendChild(a);
@@ -138,19 +187,42 @@
   }
 
   function markActive(id) {
-    $$('.nav-link').forEach(a => a.classList.toggle('active', a.dataset.pid === id));
+    $$('.nav-link[data-pid]').forEach(a => a.classList.toggle('active', a.dataset.pid === id));
   }
-
   function markActiveGame(id) {
     $$('.nav-link[data-game]').forEach(a => a.classList.toggle('active', a.dataset.game === id));
+  }
+  function markActiveGenre(id) {
+    $$('.nav-link[data-genre]').forEach(a => a.classList.toggle('active', a.dataset.genre === id));
+  }
+
+  function gameTitle(g) {
+    const r = L() === 'ru' && window.GAMES_RU && window.GAMES_RU[g.id];
+    return (r && r.title) || g.title;
+  }
+  function gameTagline(g) {
+    const r = L() === 'ru' && window.GAMES_RU && window.GAMES_RU[g.id];
+    return (r && r.tagline) || g.tagline;
+  }
+  function gameControls(g) {
+    const r = L() === 'ru' && window.GAMES_RU && window.GAMES_RU[g.id];
+    return (r && r.controls) || g.controls;
+  }
+
+  function searchHay(p) {
+    const r = locP(p);
+    return [
+      p.name, p.tagline, p.intent,
+      (p.genres || []).join(' '), (p.use || []).join(' '),
+      r ? [r.tagline, r.intent, (r.genres || []).join(' '), (r.use || []).join(' ')].join(' ') : '',
+    ].join(' ').toLowerCase();
   }
 
   function searchFilter(q) {
     q = q.trim().toLowerCase();
     $$('#nav-patterns .nav-link[data-pid]').forEach(a => {
       const p = byId(a.dataset.pid);
-      const hay = (p.name + ' ' + p.tagline + ' ' + p.intent + ' ' + (p.genres || []).join(' ')).toLowerCase();
-      a.classList.toggle('hidden-by-search', !(q === '' || hay.includes(q)));
+      a.classList.toggle('hidden-by-search', !(q === '' || searchHay(p).includes(q)));
     });
     $$('#nav-patterns .nav-section').forEach(sec => {
       const any = [...sec.querySelectorAll('.nav-link[data-pid]')].some(a => !a.classList.contains('hidden-by-search'));
@@ -161,8 +233,7 @@
     if (grid) {
       [...grid.children].forEach(card => {
         const p = byId(card.dataset.pid);
-        const hay = (p.name + ' ' + p.tagline + ' ' + (p.genres || []).join(' ')).toLowerCase();
-        card.style.display = (!q || hay.includes(q)) ? '' : 'none';
+        card.style.display = (!q || searchHay(p).includes(q)) ? '' : 'none';
       });
     }
   }
@@ -172,8 +243,9 @@
   function crumb(parts) {
     const b = $('#breadcrumb');
     clear(b);
-    b.appendChild(h('a', '', '⌂ dossier'));
-    b.firstChild.href = '#/';
+    const home = h('a', '', tt('crumb.home'));
+    home.href = '#/';
+    b.appendChild(home);
     parts.forEach(p => {
       b.appendChild(h('span', '', ' / '));
       if (p.href) { const a = h('a', '', p.label); a.href = p.href; b.appendChild(a); }
@@ -185,7 +257,7 @@
   function renderHome() {
     destroyRoute();
     markActive(null);
-    crumb([{ label: 'overview' }]);
+    crumb([{ label: tt('crumb.overview') }]);
 
     const counts = {};
     CAT_ORDER.forEach(c => counts[c] = PATTERNS.filter(p => p.cat === c).length);
@@ -195,21 +267,19 @@
     hero.innerHTML = `
       <canvas id="hero-canvas"></canvas>
       <div class="hero-inner">
-        <div class="hero-kicker">interactive research dossier</div>
-        <h1>Design patterns for <span class="grad">games</span>, dissected live.</h1>
-        <p class="lede">The GoF classics reimagined for engines and gameplay — every pattern with an animated structure,
-        a step-through choreography, runnable code, and a playable micro-demo. Built from the C# research in this repository,
-        plus the patterns real studios actually reach for first.</p>
+        <div class="hero-kicker">${tt('hero.kicker')}</div>
+        <h1>${tt('hero.title')}</h1>
+        <p class="lede">${tt('hero.lede')}</p>
         <div class="row">
-          <a class="btn primary" href="#/pattern/observer" style="text-decoration:none">▶ Start with Observer</a>
-          <a class="btn" href="#/category/bonus" style="text-decoration:none">Game-engine extras ↗</a>
+          <a class="btn primary" href="#/pattern/observer" style="text-decoration:none">${tt('hero.cta')}</a>
+          <a class="btn" href="#/category/bonus" style="text-decoration:none">${tt('hero.cta2')}</a>
         </div>
         <div class="hero-stats">
-          <div class="stat-chip"><div class="v">${PATTERNS.length}</div><div class="k">patterns</div></div>
-          <div class="stat-chip"><div class="v">${demos}</div><div class="k">live demos</div></div>
-          <div class="stat-chip"><div class="v">${window.GAMES ? Object.keys(GAMES).length : 0}</div><div class="k">minigames</div></div>
-          <div class="stat-chip"><div class="v">${PATTERNS.reduce((a, p) => a + p.steps.length, 0)}</div><div class="k">choreography steps</div></div>
-          <div class="stat-chip"><div class="v">${PATTERNS.reduce((a, p) => a + p.code.length, 0)}</div><div class="k">code samples</div></div>
+          <div class="stat-chip"><div class="v">${PATTERNS.length}</div><div class="k">${tt('stat.patterns')}</div></div>
+          <div class="stat-chip"><div class="v">${demos}</div><div class="k">${tt('stat.demos')}</div></div>
+          <div class="stat-chip"><div class="v">${window.GAMES ? Object.keys(GAMES).length : 0}</div><div class="k">${tt('stat.games')}</div></div>
+          <div class="stat-chip"><div class="v">${PATTERNS.reduce((a, p) => a + p.steps.length, 0)}</div><div class="k">${tt('stat.steps')}</div></div>
+          <div class="stat-chip"><div class="v">${PATTERNS.reduce((a, p) => a + p.code.length, 0)}</div><div class="k">${tt('stat.code')}</div></div>
         </div>
       </div>`;
     content.appendChild(hero);
@@ -217,59 +287,71 @@
     const catGrid = h('div', 'cat-grid');
     CAT_ORDER.forEach(cat => {
       const meta = CATEGORIES[cat];
+      const blurb = L() === 'ru' ? tt('cat.blurb.' + cat) : meta.blurb;
       const a = h('a', 'cat-card', `
-        <h3><span class="cat-swatch" style="--cat-color:${meta.color}"></span>${meta.label}</h3>
-        <p>${meta.blurb}</p>
-        <span class="count">${counts[cat]} patterns →</span>`);
+        <h3><span class="cat-swatch" style="--cat-color:${meta.color}"></span>${catLabel(cat)}</h3>
+        <p>${blurb}</p>
+        <span class="count">${counts[cat]} ${tt('stat.patterns')} →</span>`);
       a.href = '#/category/' + cat;
       a.style.setProperty('--cat-color', meta.color);
       catGrid.appendChild(a);
     });
     content.appendChild(h('div', 'section', ''));
-    content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">01</span><h2>The three families + engine extras</h2><div class="sec-rule"></div>`));
+    content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">01</span><h2>${tt('sec.families')}</h2><div class="sec-rule"></div>`));
     content.lastChild.appendChild(catGrid);
+
+    // genres
+    if (window.GENRES) {
+      content.appendChild(h('div', 'section', ''));
+      content.lastChild.style.setProperty('--cat-color', '#c792ea');
+      content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num" style="color:#c792ea">02</span><h2>${tt('sec.genres')}</h2><div class="sec-rule"></div>`));
+      content.lastChild.appendChild(h('p', 'muted small', tt('genres.note')));
+      const gr = h('div', 'pattern-grid');
+      window.GENRES.forEach(g => {
+        const a = h('a', 'pattern-card');
+        a.href = '#/genre/' + g.id;
+        a.style.setProperty('--cat-color', '#c792ea');
+        a.innerHTML = `
+          <div class="pc-top"><h3>${g.icon} ${pick(g.name)}</h3><span class="mini-tag" style="color:#c792ea;border-color:rgba(199,146,234,.4)">${g.items.length} ${tt('stat.patterns')}</span></div>
+          <div class="tag">${pick(g.desc)}</div>`;
+        gr.appendChild(a);
+      });
+      content.lastChild.appendChild(gr);
+    }
 
     // minigames
     if (window.GAMES) {
       content.appendChild(h('div', 'section', ''));
       content.lastChild.style.setProperty('--cat-color', '#80ed99');
-      content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num" style="color:#80ed99">02</span><h2>Playable minigames</h2><div class="sec-rule"></div>`));
-      content.lastChild.appendChild(h('p', 'muted small', 'Tiny games, real mechanics: each one is a working composite of the patterns above — with the exact spots where they plug in labeled.'));
+      content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num" style="color:#80ed99">03</span><h2>${tt('sec.games')}</h2><div class="sec-rule"></div>`));
+      content.lastChild.appendChild(h('p', 'muted small', tt('games.note')));
       const ggrid = h('div', 'pattern-grid');
       Object.values(GAMES).forEach(g => {
         const a = h('a', 'pattern-card');
         a.href = '#/game/' + g.id;
         a.style.setProperty('--cat-color', '#80ed99');
         a.innerHTML = `
-          <div class="pc-top"><h3>🕹 ${g.title}</h3><span class="mini-tag" style="color:#80ed99;border-color:rgba(128,237,153,.4)">minigame</span></div>
-          <div class="tag">${g.tagline}</div>
-          <div class="pc-foot"><span class="mini-tag">${g.patterns.length} patterns inside</span><span class="mini-tag">${g.controls}</span></div>`;
+          <div class="pc-top"><h3>🕹 ${gameTitle(g)}</h3><span class="mini-tag" style="color:#80ed99;border-color:rgba(128,237,153,.4)">minigame</span></div>
+          <div class="tag">${gameTagline(g)}</div>
+          <div class="pc-foot"><span class="mini-tag">${tt('card.inside', { n: g.patterns.length })}</span><span class="mini-tag">${gameControls(g)}</span></div>`;
         ggrid.appendChild(a);
       });
       content.lastChild.appendChild(ggrid);
     }
 
     content.appendChild(h('div', 'section', ''));
-    content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">03</span><h2>Full catalogue</h2><div class="sec-rule"></div>`));
+    content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">04</span><h2>${tt('sec.catalogue')}</h2><div class="sec-rule"></div>`));
     const grid = h('div', 'pattern-grid'); grid.id = 'home-grid';
     PATTERNS.forEach(p => grid.appendChild(patternCard(p)));
     content.lastChild.appendChild(grid);
 
     const notes = h('div', 'section');
-    notes.innerHTML = `<div class="sec-head"><span class="sec-num">04</span><h2>How to read this dossier</h2><div class="sec-rule"></div></div>
+    notes.innerHTML = `<div class="sec-head"><span class="sec-num">05</span><h2>${tt('sec.howto')}</h2><div class="sec-rule"></div></div>
       <div class="two-col">
-        <div class="panel"><h3>🎬 Choreography, not just UML</h3>
-          <p class="muted">Each pattern ships with an animated runtime walkthrough. Press <b>Play</b> to watch calls flow
-          through the participants instead of squinting at static boxes.</p></div>
-        <div class="panel"><h3>🕹 Every claim is runnable</h3>
-          <p class="muted">Interactive demos are real simulations of the pattern's mechanics — swap strategies mid-flight,
-          fire 5 000 pooled bullets, watch the event queue drain. Nothing is a screenshot.</p></div>
-        <div class="panel"><h3>📦 Rooted in the repo</h3>
-          <p class="muted">Every structural/behavioral/creational entry links its original C# file in this repository and
-          pairs it with a JavaScript port for the browser.</p></div>
-        <div class="panel"><h3>⚠️ Honest caveats</h3>
-          <p class="muted">Patterns include “when it hurts” notes: where they become anti-patterns and what modern engines
-          do instead.</p></div>
+        <div class="panel"><h3>${tt('howto.t1')}</h3><p class="muted">${tt('howto.b1')}</p></div>
+        <div class="panel"><h3>${tt('howto.t2')}</h3><p class="muted">${tt('howto.b2')}</p></div>
+        <div class="panel"><h3>${tt('howto.t3')}</h3><p class="muted">${tt('howto.b3')}</p></div>
+        <div class="panel"><h3>${tt('howto.t4')}</h3><p class="muted">${tt('howto.b4')}</p></div>
       </div>`;
     content.appendChild(notes);
 
@@ -283,10 +365,10 @@
     a.dataset.pid = p.id;
     a.style.setProperty('--cat-color', meta.color);
     a.innerHTML = `
-      <div class="pc-top"><h3>${p.name}</h3><span class="mini-tag cat">${meta.label}</span></div>
-      <div class="tag">${p.tagline}</div>
+      <div class="pc-top"><h3>${p.name}</h3><span class="mini-tag cat">${catLabel(p.cat)}</span></div>
+      <div class="tag">${pField(p, 'tagline')}</div>
       <div class="pc-foot">
-        ${p.demo ? '<span class="mini-tag" style="color:var(--good);border-color:rgba(128,237,153,.4)">● live demo</span>' : ''}
+        ${p.demo ? `<span class="mini-tag" style="color:var(--good);border-color:rgba(128,237,153,.4)">${tt('card.demo')}</span>` : ''}
         <span class="mini-tag">${p.num}</span>
       </div>`;
     return a;
@@ -336,7 +418,6 @@
       }
       requestAnimationFrame(tick);
     })();
-    // stop when leaving home
     const obs = new MutationObserver(() => { if (!cv.isConnected) { alive = false; obs.disconnect(); } });
     obs.observe(content, { childList: true });
   }
@@ -346,60 +427,54 @@
     destroyRoute();
     markActive(null);
     const list = cat === 'all' ? PATTERNS : PATTERNS.filter(p => p.cat === cat);
-    crumb([{ label: cat === 'all' ? 'all patterns' : CATEGORIES[cat].label }]);
+    const label = cat === 'all' ? tt('catview.all') : catLabel(cat);
+    crumb([{ label }]);
     const sec = h('div', 'section');
     sec.appendChild(h('div', 'sec-head',
-      `<span class="sec-num">▣</span><h2>${cat === 'all' ? 'All patterns' : CATEGORIES[cat].label + ' patterns'} · ${list.length}</h2><div class="sec-rule"></div>`));
+      `<span class="sec-num">▣</span><h2>${cat === 'all' ? tt('catview.all') : tt('catview.heading', { label, n: list.length })}</h2><div class="sec-rule"></div>`));
     const grid = h('div', 'pattern-grid'); grid.id = 'home-grid';
     list.forEach(p => grid.appendChild(patternCard(p)));
     sec.appendChild(grid);
     content.appendChild(sec);
-    startHeroCanvasStopHack();
   }
-  function startHeroCanvasStopHack() { /* canvas loop stops itself via MutationObserver */ }
 
-  /* ---------------- minigame page ---------------- */
-  function renderGame(id) {
-    const g = window.GAMES && GAMES[id];
+  /* ---------------- genre view ---------------- */
+  function renderGenre(id) {
+    const g = window.GENRES && GENRES.find(x => x.id === id);
     if (!g) return renderHome();
     destroyRoute();
-    markActive(null); markActiveGame(id);
-    content.style.setProperty('--cat-color', '#80ed99');
-    crumb([{ label: 'minigames', href: '#/' }, { label: g.title }]);
+    markActive(null); markActiveGenre(id);
+    crumb([{ label: tt('nav.genres'), href: '#/' }, { label: pick(g.name) }]);
 
     const head = h('div', 'pattern-head');
+    head.style.setProperty('--cat-color', '#c792ea');
     head.innerHTML = `
       <div class="tagrow" style="margin-top:0">
-        <span class="chip cat" style="color:#80ed99;border-color:rgba(128,237,153,.5);background:rgba(128,237,153,.09)">🕹 playable minigame</span>
-        <span class="chip">${g.patterns.length} patterns composed</span>
-        <span class="chip">controls · ${g.controls}</span>
+        <span class="chip cat" style="color:#c792ea;border-color:rgba(199,146,234,.5);background:rgba(199,146,234,.09)">${g.icon} genre</span>
+        <span class="chip">${g.items.length} ${tt('stat.patterns')}</span>
       </div>
-      <h1>${g.title}</h1>
-      <p class="tagline">${g.tagline}</p>`;
+      <h1>${g.icon} ${pick(g.name)}</h1>
+      <p class="tagline">${pick(g.desc)}</p>`;
     content.appendChild(head);
 
-    const mountRoot = h('div', '');
-    content.appendChild(mountRoot);
-    try {
-      state.cleanupDemo = g.mount(mountRoot, '#80ed99') || null;
-    } catch (err) {
-      mountRoot.innerHTML = `<div class="panel"><span class="muted">game failed to load: ${esc(err.message)}</span></div>`;
-      console.error(err);
-    }
-
-    // patterns inside
-    const sec = h('div', 'section');
-    sec.innerHTML = `<div class="sec-head"><span class="sec-num" style="color:#80ed99">▣</span><h2>Patterns under the hood</h2><div class="sec-rule"></div></div>`;
-    const strip = h('div', 'related-strip');
-    g.patterns.map(byId).filter(Boolean).forEach(r => {
-      const a = h('a', 'related-card', `<span class="rn">${r.num}</span> ${r.name} <span class="rl">· ${r.tagline}</span>`);
-      a.href = '#/pattern/' + r.id;
-      strip.appendChild(a);
+    const wrap = h('div', 'section');
+    g.items.forEach(it => {
+      const p = byId(it.id);
+      if (!p) return;
+      const card = h('a', 'related-card');
+      card.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px 16px';
+      card.href = '#/pattern/' + p.id;
+      card.innerHTML = `
+        <span class="rn mono" style="color:var(--cat-color,${CATEGORIES[p.cat].color});font-weight:700">${p.num}</span>
+        <span style="display:grid;gap:2px">
+          <span style="color:var(--ink);font-weight:600">${p.name}</span>
+          <span class="rl">${pick(it.sc)}</span>
+        </span>`;
+      wrap.appendChild(card);
     });
-    sec.appendChild(strip);
-    sec.appendChild(h('p', 'muted small mt16', 'Each linked pattern has its own animated diagram and focused micro-demo — this game just composes them the way an engine would.'));
-    content.appendChild(sec);
+    content.appendChild(wrap);
 
+    content.appendChild(h('p', 'muted small mt8', tt('genres.note')));
     content.scrollTop = 0;
     scrollTo({ top: 0 });
   }
@@ -408,33 +483,71 @@
   function renderAbout() {
     destroyRoute();
     markActive(null);
-    crumb([{ label: 'about & method' }]);
+    crumb([{ label: tt('nav.about') }]);
     const sec = h('div', 'section');
     sec.innerHTML = `
-      <div class="sec-head"><span class="sec-num">✦</span><h2>About this dossier</h2><div class="sec-rule"></div></div>
+      <div class="sec-head"><span class="sec-num">✦</span><h2>${tt('about.title')}</h2><div class="sec-rule"></div></div>
       <div class="panel">
-        <p>This site is an interactive reinterpretation of the design-patterns research contained in the repository —
-        originally a C# console walkthrough of the Gang of Four patterns (see <a href="${REPO}README.md">README.md</a>).
-        The dossier keeps every pattern's intent and example, adds game-development framing, genre-by-genre usage examples,
-        animated choreography, and three code flavors per pattern — the original <b>C#</b>, a browser <b>JavaScript</b> port,
-        and a Godot-4 <b>GDScript</b> port. Six patterns engines reach for daily (Command, Object Pool, Game Loop,
-        Component, Spatial Partition, Event Queue) join the classic twenty-one, and the
-        <a href="#/category/bonus">minigames</a> section lets you play the patterns working together.</p>
-        <h3 class="mt16">Sources</h3>
+        <p>${tt('about.p1')}</p>
+        <h3 class="mt16">${tt('about.src')}</h3>
         <ul class="note-list">
-          <li><b>Repository code</b> — each pattern page links its original <span class="mono">.cs</span> file.</li>
-          <li><b>E. Gamma, R. Helm, R. Johnson, J. Vlissides</b> — “Design Patterns: Elements of Reusable Object-Oriented Software” (GoF, 1994).</li>
-          <li><b>R. Nystrom</b> — “Game Programming Patterns” (2014): Command, Object Pool, Game Loop, Event Queue, Spatial Partition, Component.</li>
+          <li>${tt('about.s1')}</li>
+          <li>${tt('about.s2')}</li>
+          <li>${tt('about.s3')}</li>
         </ul>
-        <h3 class="mt16">How the demos work</h3>
-        <p class="muted">Everything runs locally in your browser: no build step, no dependencies, no tracking.
-        Open any page source and the whole dossier is plain HTML/CSS/JS served statically.</p>
+        <h3 class="mt16">${tt('about.how')}</h3>
+        <p class="muted">${tt('about.demos')}</p>
         <div class="row mt16">
-          <a class="btn" href="${REPO}" target="_blank" rel="noopener">View source on GitHub ↗</a>
-          <a class="btn primary" href="#/">← back to the dossier</a>
+          <a class="btn" href="${REPO}" target="_blank" rel="noopener">${tt('about.repo')}</a>
+          <a class="btn primary" href="#/">${tt('about.back')}</a>
         </div>
       </div>`;
     content.appendChild(sec);
+  }
+
+  /* ---------------- minigame page ---------------- */
+  function renderGame(id) {
+    const g = window.GAMES && GAMES[id];
+    if (!g) return renderHome();
+    destroyRoute();
+    markActive(null); markActiveGame(id);
+    content.style.setProperty('--cat-color', '#80ed99');
+    crumb([{ label: tt('nav.minigames'), href: '#/' }, { label: gameTitle(g) }]);
+
+    const head = h('div', 'pattern-head');
+    head.innerHTML = `
+      <div class="tagrow" style="margin-top:0">
+        <span class="chip cat" style="color:#80ed99;border-color:rgba(128,237,153,.5);background:rgba(128,237,153,.09)">${tt('game.chip')}</span>
+        <span class="chip">${tt('game.composed', { n: g.patterns.length })}</span>
+        <span class="chip">${tt('game.controls')}${gameControls(g)}</span>
+      </div>
+      <h1>${gameTitle(g)}</h1>
+      <p class="tagline">${gameTagline(g)}</p>`;
+    content.appendChild(head);
+
+    const mountRoot = h('div', '');
+    content.appendChild(mountRoot);
+    try {
+      state.cleanupDemo = g.mount(mountRoot, '#80ed99') || null;
+    } catch (err) {
+      mountRoot.innerHTML = `<div class="panel"><span class="muted">demo failed to load: ${esc(err.message)}</span></div>`;
+      console.error(err);
+    }
+
+    const sec = h('div', 'section');
+    sec.innerHTML = `<div class="sec-head"><span class="sec-num" style="color:#80ed99">▣</span><h2>${tt('game.underhood')}</h2><div class="sec-rule"></div></div>`;
+    const strip = h('div', 'related-strip');
+    g.patterns.map(byId).filter(Boolean).forEach(r => {
+      const a = h('a', 'related-card', `<span class="rn">${r.num}</span> ${r.name} <span class="rl">· ${pField(r, 'tagline')}</span>`);
+      a.href = '#/pattern/' + r.id;
+      strip.appendChild(a);
+    });
+    sec.appendChild(strip);
+    sec.appendChild(h('p', 'muted small mt16', tt('game.note')));
+    content.appendChild(sec);
+
+    content.scrollTop = 0;
+    scrollTo({ top: 0 });
   }
 
   /* ---------------- pattern detail ---------------- */
@@ -444,7 +557,7 @@
     destroyRoute();
     markActive(id);
     crumb([
-      { label: CATEGORIES[p.cat].label, href: '#/category/' + p.cat },
+      { label: catLabel(p.cat), href: '#/category/' + p.cat },
       { label: p.name },
     ]);
     const color = CATEGORIES[p.cat].color;
@@ -455,35 +568,38 @@
     head.style.setProperty('--cat-color', color);
     head.innerHTML = `
       <div class="tagrow" style="margin-top:0">
-        <span class="chip cat">${p.num} · ${CATEGORIES[p.cat].label}</span>
-        ${p.demo ? '<span class="chip demo-chip">● has live demo</span>' : ''}
-        ${FILE_MAP[p.id] ? `<a class="chip" href="${REPO}${FILE_MAP[p.id]}" target="_blank" rel="noopener">view .cs in repo ↗</a>` : '<span class="chip">engine-native pattern</span>'}
+        <span class="chip cat">${p.num} · ${catLabel(p.cat)}</span>
+        ${p.demo ? `<span class="chip demo-chip">${tt('chip.demo')}</span>` : ''}
+        ${FILE_MAP[p.id]
+        ? `<a class="chip" href="${REPO}${FILE_MAP[p.id]}" target="_blank" rel="noopener">${tt('chip.repo')}</a>`
+        : `<span class="chip">${tt('chip.native')}</span>`}
       </div>
       <h1>${p.name}</h1>
       ${p.aka ? `<div class="aka">a.k.a. <b>${Array.isArray(p.aka) ? p.aka.join(', ') : p.aka}</b></div>` : ''}
-      <p class="tagline">${p.tagline}</p>`;
+      <p class="tagline">${pField(p, 'tagline')}</p>`;
     content.appendChild(head);
 
     /* intent */
-    content.appendChild(sectionHead('A', 'Intent'));
-    content.appendChild(h('div', 'intent-quote', `<span class="lbl">official intent</span>${p.intent}`));
+    content.appendChild(sectionHead('A', tt('sec.intent')));
+    content.appendChild(h('div', 'intent-quote', `<span class="lbl">${tt('intent.label')}</span>${pField(p, 'intent')}`));
 
     /* game framing */
-    content.appendChild(sectionHead('B', 'Why games care'));
+    content.appendChild(sectionHead('B', tt('sec.why')));
     const gp = h('div', 'panel');
-    gp.innerHTML = `<h3 style="color:var(--cat-color);font-size:15px;margin-bottom:8px">${p.gameTitle}</h3>
-      <p class="muted" style="margin:0 0 10px">${p.gameBody}</p>
-      <ul class="note-list">${p.gameBullets.map(b => `<li>${b}</li>`).join('')}</ul>`;
-    if (p.genres && p.genres.length) {
-      gp.appendChild(h('div', 'field-label mt16', 'where it shows up — genre examples'));
+    gp.innerHTML = `<h3 style="color:var(--cat-color);font-size:15px;margin-bottom:8px">${pField(p, 'gameTitle')}</h3>
+      <p class="muted" style="margin:0 0 10px">${pField(p, 'gameBody')}</p>
+      <ul class="note-list">${(pField(p, 'gameBullets') || []).map(b => `<li>${b}</li>`).join('')}</ul>`;
+    const genres = pField(p, 'genres') || [];
+    if (genres.length) {
+      gp.appendChild(h('div', 'field-label mt16', tt('genres.label')));
       const grow = h('div', 'tagrow');
-      p.genres.forEach(g => grow.appendChild(h('span', 'chip', g)));
+      genres.forEach(g => grow.appendChild(h('span', 'chip', g)));
       gp.appendChild(grow);
     }
     content.appendChild(gp);
 
     /* diagram + choreography */
-    content.appendChild(sectionHead('C', 'Structure & choreography'));
+    content.appendChild(sectionHead('C', tt('sec.struct')));
     const wrap = h('div', 'panel');
     wrap.style.padding = '10px';
     const scrollBox = h('div', 'diagram-scroll');
@@ -494,12 +610,20 @@
     if (p.steps.length) {
       const playerRoot = h('div');
       content.appendChild(playerRoot);
-      state.player = DiagramKit.createPlayer(playerRoot, p.steps, refs, { interval: 2200 });
+      state.player = DiagramKit.createPlayer(playerRoot, pSteps(p), refs, {
+        interval: 2200,
+        ready1: tt('player.ready1'),
+        ready2: tt('player.ready2'),
+        prev: tt('player.prev'),
+        next: tt('player.next'),
+        play: tt('player.play'),
+        pause: tt('player.pause'),
+      });
     }
 
     /* code */
     if (p.code.length) {
-      content.appendChild(sectionHead('D', 'Code — repository & port'));
+      content.appendChild(sectionHead('D', tt('sec.codeh')));
       const cw = h('div', '');
       const tabs = h('div', 'code-tabs');
       const win = h('div', 'code-window');
@@ -543,7 +667,7 @@
 
     /* demo */
     if (p.demo && DEMOS[p.demo]) {
-      content.appendChild(sectionHead('E', 'Live playground'));
+      content.appendChild(sectionHead('E', tt('sec.demoh')));
       const root = h('div', '');
       content.appendChild(root);
       try {
@@ -555,23 +679,23 @@
     }
 
     /* applicability & pitfalls */
-    content.appendChild(sectionHead('F', 'Field notes'));
+    content.appendChild(sectionHead('F', tt('sec.notes')));
     const two = h('div', 'two-col');
     const useP = h('div', 'panel');
-    useP.innerHTML = `<h3 style="font-size:14px;color:var(--good);margin-bottom:10px">✓ reach for it when…</h3>
-      <ul class="note-list">${p.use.map(u => `<li>${u}</li>`).join('')}</ul>`;
+    useP.innerHTML = `<h3 style="font-size:14px;color:var(--good);margin-bottom:10px">${tt('notes.use')}</h3>
+      <ul class="note-list">${(pField(p, 'use') || []).map(u => `<li>${u}</li>`).join('')}</ul>`;
     const badP = h('div', 'panel');
-    badP.innerHTML = `<h3 style="font-size:14px;color:var(--bad);margin-bottom:10px">⚠ it hurts when…</h3>
-      <ul class="note-list">${p.pitfalls.map(u => `<li>${u}</li>`).join('')}</ul>`;
+    badP.innerHTML = `<h3 style="font-size:14px;color:var(--bad);margin-bottom:10px">${tt('notes.pitfalls')}</h3>
+      <ul class="note-list">${(pField(p, 'pitfalls') || []).map(u => `<li>${u}</li>`).join('')}</ul>`;
     two.append(useP, badP);
     content.appendChild(two);
 
     /* related */
     if (p.related.length) {
-      content.appendChild(sectionHead('G', 'See also'));
+      content.appendChild(sectionHead('G', tt('sec.related')));
       const strip = h('div', 'related-strip');
       p.related.map(byId).filter(Boolean).forEach(r => {
-        const a = h('a', 'related-card', `<span class="rn">${r.num}</span> ${r.name} <span class="rl">· ${r.tagline}</span>`);
+        const a = h('a', 'related-card', `<span class="rn">${r.num}</span> ${r.name} <span class="rl">· ${pField(r, 'tagline')}</span>`);
         a.href = '#/pattern/' + r.id;
         strip.appendChild(a);
       });
@@ -605,6 +729,7 @@
     if (parts.length === 0) return renderHome();
     if (parts[0] === 'pattern' && parts[1]) return renderPattern(parts[1]);
     if (parts[0] === 'game' && parts[1]) return renderGame(parts[1]);
+    if (parts[0] === 'genre' && parts[1]) return renderGenre(parts[1]);
     if (parts[0] === 'category' && parts[1]) return renderCategory(parts[1]);
     if (parts[0] === 'about') return renderAbout();
     return renderHome();
@@ -612,17 +737,21 @@
   addEventListener('hashchange', route);
 
   /* ---------------- boot ---------------- */
-  // merge GDScript ports + genre tags into the catalogue
+  // merge GDScript ports + genre tags + Russian content into the catalogue
   (function mergeExtras() {
-    if (!window.PATTERN_EXTRA) return;
-    PATTERNS.forEach(p => {
-      const x = window.PATTERN_EXTRA[p.id];
-      if (!x) return;
-      if (x.genres && x.genres.length) p.genres = x.genres;
-      if (x.gd) p.code = p.code.concat([{ lang: 'gd', title: x.gd.title, src: x.gd.src }]);
-    });
+    if (window.PATTERN_EXTRA) {
+      PATTERNS.forEach(p => {
+        const x = window.PATTERN_EXTRA[p.id];
+        if (!x) return;
+        if (x.genres && x.genres.length) p.genres = x.genres;
+        if (x.gd) p.code = p.code.concat([{ lang: 'gd', title: x.gd.title, src: x.gd.src }]);
+      });
+    }
   })();
 
+  document.documentElement.lang = L();
   buildNav();
+  wireLangToggle();
+  localizeStatic();
   route();
 })();
