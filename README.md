@@ -10,8 +10,7 @@
 >
 > ➡️ Open it at **[https://sergutsu.github.io/designpatterns/](https://sergutsu.github.io/designpatterns/)**
 > or serve `docs/` with any static file server.
-> The workflow in `.github/workflows/static.yml` deploys `docs/` automatically on every push to `master`
-> (enable Pages source *GitHub Actions* in repo settings).
+
 
 Below you can find three basic classifications of patterns: Creational, Structural, and Behavioral.
 
