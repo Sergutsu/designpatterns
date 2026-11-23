@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Design Patterns — Interactive Research Dossier</title>
+  <meta name="description" content="Design patterns for games as a fully interactive dossier: animated structure diagrams, step-through choreography, runnable code and playable micro-demos." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e14'/%3E%3Ccircle cx='22' cy='24' r='9' fill='%234cc9f0'/%3E%3Ccircle cx='44' cy='40' r='9' fill='%23f72585'/%3E%3Cpath d='M22 24 L44 40' stroke='%23ffd166' stroke-width='4'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Dossier navigation">
+      <div class="brand">
+        <div class="brand-logo">π</div>
+        <div>
+          <div class="brand-name">Game Patterns</div>
+          <div class="brand-sub">interactive dossier · v1.0</div>
+        </div>
+      </div>
+      <div class="nav-search">
+        <input id="nav-search" type="search" placeholder="filter patterns…" autocomplete="off" spellcheck="false" />
+      </div>
+      <nav id="nav-patterns" aria-label="Patterns"></nav>
+      <div class="nav-footer">
+        Built from the C# research in<br /><a href="https://github.com/Sergutsu/designpatterns">Sergutsu/designpatterns</a><br /><br />
+        <span class="mono">static site · no build step</span>
+      </div>
+    </aside>
+
+    <div class="scrim" id="scrim"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="menu-btn" id="menu-btn" aria-label="toggle navigation">☰</button>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="topbar-right">
+          <span class="pill"><span class="dot"></span> static · github pages ready</span>
+        </div>
+      </header>
+
+      <main class="content" id="content"></main>
+
+      <footer class="footer">
+        <span>© 2026 · curated interactive edition of the repository’s design-pattern research.</span>
+        <span class="mono">GoF 21 + 6 engine-native patterns</span>
+        <span style="margin-left:auto"><a href="#/about">about &amp; method</a> · <a href="https://github.com/Sergutsu/designpatterns">source repo</a></span>
+      </footer>
+    </div>
+  </div>
+
+  <button class="to-top" id="to-top" aria-label="back to top">↑</button>
+
+  <script src="assets/js/data-core.js"></script>
+  <script src="assets/js/data-creational.js"></script>
+  <script src="assets/js/data-structural.js"></script>
+  <script src="assets/js/data-behavioral.js"></script>
+  <script src="assets/js/data-bonus.js"></script>
+  <script src="assets/js/data-extra-a.js"></script>
+  <script src="assets/js/data-extra-b.js"></script>
+  <script src="assets/js/diagram.js"></script>
+  <script src="assets/js/demos-core.js"></script>
+  <script src="assets/js/demos-behavioral.js"></script>
+  <script src="assets/js/demos-creational-bonus.js"></script>
+  <script src="assets/js/games.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
