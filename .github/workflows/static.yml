@@ -2,7 +2,7 @@ name: Deploy interactive dossier to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [master, 'arena/**']
   workflow_dispatch:
 
 permissions:
