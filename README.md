@@ -2,9 +2,11 @@
 
 > 🎮 **Interactive research dossier (NEW):** this repository now ships a fully interactive,
 > GitHub-Pages-ready web edition of the material below — animated structure diagrams,
-> step-through choreography, runnable code ports and a playable micro-demo for every pattern,
-> plus six engine-native extras (Command, Object Pool, Game Loop, Component/ECS,
-> Spatial Partition, Event Queue).
+> step-through choreography, and three code flavors per pattern (**C#** from this repo,
+> **JavaScript** port, **Godot 4 / GDScript** port), genre-by-genre usage examples,
+> a playable micro-demo for every pattern, three composed **minigames**
+> (shooter · sokoban · snake) and six engine-native extras (Command, Object Pool, Game Loop,
+> Component/ECS, Spatial Partition, Event Queue).
 >
 > ➡️ Open it at **[https://sergutsu.github.io/designpatterns/](https://sergutsu.github.io/designpatterns/)**
 > or serve `docs/` with any static file server.

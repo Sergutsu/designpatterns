@@ -9,19 +9,21 @@
   const KW = new Set(('var let const function return if else for while class new this super extends import export from default ' +
     'public private protected readonly static abstract interface void int float double decimal string bool using namespace get set out ' +
     'override virtual sealed foreach in of do switch case break continue try catch finally throw lock null true false undefined NaN ' +
-    'typeof instanceof yield async await delegate enum struct event params ref base is as object var').split(' '));
+    'typeof instanceof yield async await delegate enum struct event params ref base is as object signal func class_name ' +
+    'await preload load self pass const match breakpoint and or not').split(' '));
 
   function esc(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  function tokenize(src) {
-    const re = /(\/\/[^\n]*)|(\/\*[\s\S]*?\*\/)|('(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`)|(\b\d[\d_]*(?:\.\d+)?[fFmM]?\b)|([A-Za-z_$][\w$]*)|(\s+)|(.)/g;
+  function tokenize(src, lang) {
+    const hashCom = lang === 'gd';
+    const re = /(\/\/[^\n]*)|(#[^\n]*)|(\/\*[\s\S]*?\*\/)|('(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`)|(\b\d[\d_]*(?:\.\d+)?[fFmM]?\b)|([A-Za-z_$][\w$]*)|(\s+)|(.)/g;
     const out = [];
     let m;
     while ((m = re.exec(src))) {
-      const [full, com, , str, num, ident, ws] = m;
-      if (com) out.push(['com', com]);
+      const [full, com, hash, , str, num, ident, ws] = m;
+      if (com || (hashCom && hash)) out.push(['com', com || hash]);
       else if (str) out.push(['str', str]);
       else if (num) out.push(['num', num]);
       else if (ident) {
@@ -35,14 +37,14 @@
     return out;
   }
 
-  function highlightHTML(src) {
-    return tokenize(src).map(([cls, text]) =>
+  function highlightHTML(src, lang) {
+    return tokenize(src, lang).map(([cls, text]) =>
       cls === 'plain' ? esc(text) : `<span class="tok-${cls}">${esc(text)}</span>`).join('');
   }
 
-  function highlightLines(src) {
-    const html = highlightHTML(src);
-    return html.split('\n').map((l, i) => `<span class="cl">${l || ' '}</span>`).join('');
+  function highlightLines(src, lang) {
+    const html = highlightHTML(src, lang);
+    return html.split('\n').map(l => `<span class="cl">${l || ' '}</span>`).join('');
   }
 
   /* ---------------- helpers ---------------- */
@@ -112,6 +114,18 @@
       });
       nav.appendChild(sec);
     });
+    // minigames
+    if (window.GAMES) {
+      const gs = h('div', 'nav-section');
+      gs.style.setProperty('--nav-color', '#80ed99');
+      gs.appendChild(h('div', 'nav-section-title', '<span class="dot bonus"></span>Minigames'));
+      Object.values(GAMES).forEach(g => {
+        const a = h('a', 'nav-link', `<span>🕹 ${g.title}</span>`);
+        a.href = '#/game/' + g.id; a.dataset.game = g.id;
+        gs.appendChild(a);
+      });
+      nav.appendChild(gs);
+    }
     // utility links
     const sec = h('div', 'nav-section');
     sec.appendChild(h('div', 'nav-section-title', '<span class="dot" style="background:#6b7690"></span>Dossier'));
@@ -127,23 +141,28 @@
     $$('.nav-link').forEach(a => a.classList.toggle('active', a.dataset.pid === id));
   }
 
+  function markActiveGame(id) {
+    $$('.nav-link[data-game]').forEach(a => a.classList.toggle('active', a.dataset.game === id));
+  }
+
   function searchFilter(q) {
     q = q.trim().toLowerCase();
     $$('#nav-patterns .nav-link[data-pid]').forEach(a => {
       const p = byId(a.dataset.pid);
-      const hit = !q || (p.name + ' ' + p.tagline + ' ' + p.intent).toLowerCase().includes(q);
-      a.classList.toggle('hidden-by-search', !hit);
+      const hay = (p.name + ' ' + p.tagline + ' ' + p.intent + ' ' + (p.genres || []).join(' ')).toLowerCase();
+      a.classList.toggle('hidden-by-search', !(q === '' || hay.includes(q)));
     });
     $$('#nav-patterns .nav-section').forEach(sec => {
       const any = [...sec.querySelectorAll('.nav-link[data-pid]')].some(a => !a.classList.contains('hidden-by-search'));
-      const isDossier = !sec.querySelector('[data-pid]');
-      sec.style.display = any || (isDossier && !q) ? '' : 'none';
+      const isOther = ![...sec.querySelectorAll('.nav-link[data-pid]')].length;
+      sec.style.display = any || (isOther && !q) ? '' : 'none';
     });
     const grid = $('#home-grid');
     if (grid) {
       [...grid.children].forEach(card => {
         const p = byId(card.dataset.pid);
-        card.style.display = !q || (p.name + ' ' + p.tagline).toLowerCase().includes(q) ? '' : 'none';
+        const hay = (p.name + ' ' + p.tagline + ' ' + (p.genres || []).join(' ')).toLowerCase();
+        card.style.display = (!q || hay.includes(q)) ? '' : 'none';
       });
     }
   }
@@ -188,6 +207,7 @@
         <div class="hero-stats">
           <div class="stat-chip"><div class="v">${PATTERNS.length}</div><div class="k">patterns</div></div>
           <div class="stat-chip"><div class="v">${demos}</div><div class="k">live demos</div></div>
+          <div class="stat-chip"><div class="v">${window.GAMES ? Object.keys(GAMES).length : 0}</div><div class="k">minigames</div></div>
           <div class="stat-chip"><div class="v">${PATTERNS.reduce((a, p) => a + p.steps.length, 0)}</div><div class="k">choreography steps</div></div>
           <div class="stat-chip"><div class="v">${PATTERNS.reduce((a, p) => a + p.code.length, 0)}</div><div class="k">code samples</div></div>
         </div>
@@ -209,14 +229,34 @@
     content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">01</span><h2>The three families + engine extras</h2><div class="sec-rule"></div>`));
     content.lastChild.appendChild(catGrid);
 
+    // minigames
+    if (window.GAMES) {
+      content.appendChild(h('div', 'section', ''));
+      content.lastChild.style.setProperty('--cat-color', '#80ed99');
+      content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num" style="color:#80ed99">02</span><h2>Playable minigames</h2><div class="sec-rule"></div>`));
+      content.lastChild.appendChild(h('p', 'muted small', 'Tiny games, real mechanics: each one is a working composite of the patterns above — with the exact spots where they plug in labeled.'));
+      const ggrid = h('div', 'pattern-grid');
+      Object.values(GAMES).forEach(g => {
+        const a = h('a', 'pattern-card');
+        a.href = '#/game/' + g.id;
+        a.style.setProperty('--cat-color', '#80ed99');
+        a.innerHTML = `
+          <div class="pc-top"><h3>🕹 ${g.title}</h3><span class="mini-tag" style="color:#80ed99;border-color:rgba(128,237,153,.4)">minigame</span></div>
+          <div class="tag">${g.tagline}</div>
+          <div class="pc-foot"><span class="mini-tag">${g.patterns.length} patterns inside</span><span class="mini-tag">${g.controls}</span></div>`;
+        ggrid.appendChild(a);
+      });
+      content.lastChild.appendChild(ggrid);
+    }
+
     content.appendChild(h('div', 'section', ''));
-    content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">02</span><h2>Full catalogue</h2><div class="sec-rule"></div>`));
+    content.lastChild.appendChild(h('div', 'sec-head', `<span class="sec-num">03</span><h2>Full catalogue</h2><div class="sec-rule"></div>`));
     const grid = h('div', 'pattern-grid'); grid.id = 'home-grid';
     PATTERNS.forEach(p => grid.appendChild(patternCard(p)));
     content.lastChild.appendChild(grid);
 
     const notes = h('div', 'section');
-    notes.innerHTML = `<div class="sec-head"><span class="sec-num">03</span><h2>How to read this dossier</h2><div class="sec-rule"></div></div>
+    notes.innerHTML = `<div class="sec-head"><span class="sec-num">04</span><h2>How to read this dossier</h2><div class="sec-rule"></div></div>
       <div class="two-col">
         <div class="panel"><h3>🎬 Choreography, not just UML</h3>
           <p class="muted">Each pattern ships with an animated runtime walkthrough. Press <b>Play</b> to watch calls flow
@@ -318,6 +358,52 @@
   }
   function startHeroCanvasStopHack() { /* canvas loop stops itself via MutationObserver */ }
 
+  /* ---------------- minigame page ---------------- */
+  function renderGame(id) {
+    const g = window.GAMES && GAMES[id];
+    if (!g) return renderHome();
+    destroyRoute();
+    markActive(null); markActiveGame(id);
+    content.style.setProperty('--cat-color', '#80ed99');
+    crumb([{ label: 'minigames', href: '#/' }, { label: g.title }]);
+
+    const head = h('div', 'pattern-head');
+    head.innerHTML = `
+      <div class="tagrow" style="margin-top:0">
+        <span class="chip cat" style="color:#80ed99;border-color:rgba(128,237,153,.5);background:rgba(128,237,153,.09)">🕹 playable minigame</span>
+        <span class="chip">${g.patterns.length} patterns composed</span>
+        <span class="chip">controls · ${g.controls}</span>
+      </div>
+      <h1>${g.title}</h1>
+      <p class="tagline">${g.tagline}</p>`;
+    content.appendChild(head);
+
+    const mountRoot = h('div', '');
+    content.appendChild(mountRoot);
+    try {
+      state.cleanupDemo = g.mount(mountRoot, '#80ed99') || null;
+    } catch (err) {
+      mountRoot.innerHTML = `<div class="panel"><span class="muted">game failed to load: ${esc(err.message)}</span></div>`;
+      console.error(err);
+    }
+
+    // patterns inside
+    const sec = h('div', 'section');
+    sec.innerHTML = `<div class="sec-head"><span class="sec-num" style="color:#80ed99">▣</span><h2>Patterns under the hood</h2><div class="sec-rule"></div></div>`;
+    const strip = h('div', 'related-strip');
+    g.patterns.map(byId).filter(Boolean).forEach(r => {
+      const a = h('a', 'related-card', `<span class="rn">${r.num}</span> ${r.name} <span class="rl">· ${r.tagline}</span>`);
+      a.href = '#/pattern/' + r.id;
+      strip.appendChild(a);
+    });
+    sec.appendChild(strip);
+    sec.appendChild(h('p', 'muted small mt16', 'Each linked pattern has its own animated diagram and focused micro-demo — this game just composes them the way an engine would.'));
+    content.appendChild(sec);
+
+    content.scrollTop = 0;
+    scrollTo({ top: 0 });
+  }
+
   /* ---------------- about ---------------- */
   function renderAbout() {
     destroyRoute();
@@ -329,8 +415,11 @@
       <div class="panel">
         <p>This site is an interactive reinterpretation of the design-patterns research contained in the repository —
         originally a C# console walkthrough of the Gang of Four patterns (see <a href="${REPO}README.md">README.md</a>).
-        The dossier keeps every pattern's intent and example, adds game-development framing, animated choreography and
-        runnable JavaScript ports, and appends six patterns that engines reach for daily but the GoF book never covered.</p>
+        The dossier keeps every pattern's intent and example, adds game-development framing, genre-by-genre usage examples,
+        animated choreography, and three code flavors per pattern — the original <b>C#</b>, a browser <b>JavaScript</b> port,
+        and a Godot-4 <b>GDScript</b> port. Six patterns engines reach for daily (Command, Object Pool, Game Loop,
+        Component, Spatial Partition, Event Queue) join the classic twenty-one, and the
+        <a href="#/category/bonus">minigames</a> section lets you play the patterns working together.</p>
         <h3 class="mt16">Sources</h3>
         <ul class="note-list">
           <li><b>Repository code</b> — each pattern page links its original <span class="mono">.cs</span> file.</li>
@@ -385,6 +474,12 @@
     gp.innerHTML = `<h3 style="color:var(--cat-color);font-size:15px;margin-bottom:8px">${p.gameTitle}</h3>
       <p class="muted" style="margin:0 0 10px">${p.gameBody}</p>
       <ul class="note-list">${p.gameBullets.map(b => `<li>${b}</li>`).join('')}</ul>`;
+    if (p.genres && p.genres.length) {
+      gp.appendChild(h('div', 'field-label mt16', 'where it shows up — genre examples'));
+      const grow = h('div', 'tagrow');
+      p.genres.forEach(g => grow.appendChild(h('span', 'chip', g)));
+      gp.appendChild(grow);
+    }
     content.appendChild(gp);
 
     /* diagram + choreography */
@@ -425,7 +520,8 @@
       win.append(head2, pre);
       let curTab = 0;
       p.code.forEach((c, i) => {
-        const t = h('button', 'code-tab' + (i === 0 ? ' active' : ''), `${c.lang === 'csharp' ? 'C#' : 'JS'} · ${c.title}`);
+        const langLabel = c.lang === 'csharp' ? 'C#' : c.lang === 'gd' ? 'GDScript' : 'JS';
+        const t = h('button', 'code-tab' + (i === 0 ? ' active' : ''), `${langLabel} · ${c.title}`);
         t.type = 'button';
         t.addEventListener('click', () => {
           curTab = i;
@@ -438,7 +534,7 @@
       function paint(i) {
         const c = p.code[i];
         fname.textContent = c.title;
-        pre.innerHTML = highlightLines(c.src);
+        pre.innerHTML = highlightLines(c.src, c.lang === 'csharp' ? 'cs' : c.lang === 'gd' ? 'gd' : 'js');
       }
       paint(0);
       cw.append(tabs, win);
@@ -508,6 +604,7 @@
     const parts = hash.split('/').filter(Boolean);
     if (parts.length === 0) return renderHome();
     if (parts[0] === 'pattern' && parts[1]) return renderPattern(parts[1]);
+    if (parts[0] === 'game' && parts[1]) return renderGame(parts[1]);
     if (parts[0] === 'category' && parts[1]) return renderCategory(parts[1]);
     if (parts[0] === 'about') return renderAbout();
     return renderHome();
@@ -515,6 +612,17 @@
   addEventListener('hashchange', route);
 
   /* ---------------- boot ---------------- */
+  // merge GDScript ports + genre tags into the catalogue
+  (function mergeExtras() {
+    if (!window.PATTERN_EXTRA) return;
+    PATTERNS.forEach(p => {
+      const x = window.PATTERN_EXTRA[p.id];
+      if (!x) return;
+      if (x.genres && x.genres.length) p.genres = x.genres;
+      if (x.gd) p.code = p.code.concat([{ lang: 'gd', title: x.gd.title, src: x.gd.src }]);
+    });
+  })();
+
   buildNav();
   route();
 })();
